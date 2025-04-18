@@ -188,6 +188,98 @@ CALL getName(@name);
 
 SELECT @name;
 
+CREATE TABLE employees (
+  emp_id INT PRIMARY KEY,
+  name VARCHAR(100),
+  department VARCHAR(100),
+  salary DECIMAL(10,2),
+  hire_date DATE
+);
+
+CREATE TABLE departments (
+  dept_id INT PRIMARY KEY,
+  dept_name VARCHAR(100),
+  budget DECIMAL(15,2),
+  manager_id INT
+);
+
+
+INSERT INTO departments (dept_id, dept_name, budget, manager_id) VALUES
+(1, 'Human Resources', 500000.00, 101),
+(2, 'Engineering', 1000000.00, 102),
+(3, 'Marketing', 300000.00, 103);
+
+
+INSERT INTO employees (emp_id, name, department, salary, hire_date) VALUES
+(1, 'Alice Johnson', 'Human Resources', 55000.00, '2020-01-10'),
+(2, 'Bob Smith', 'Human Resources', 48000.00, '2021-02-20'),
+(3, 'Charlie Davis', 'Human Resources', 62000.00, '2019-03-15'),
+(4, 'David Miller', 'Engineering', 80000.00, '2020-06-01'),
+(5, 'Eve Wilson', 'Engineering', 75000.00, '2018-07-23'),
+(6, 'Frank Brown', 'Engineering', 95000.00, '2022-09-12'),
+(7, 'Grace Taylor', 'Marketing', 47000.00, '2021-05-18'),
+(8, 'Hannah Lee', 'Marketing', 50000.00, '2020-08-15'),
+(9, 'Irene Martinez', 'Marketing', 60000.00, '2021-11-01'),
+(10, 'John Clark', 'Engineering', 85000.00, '2019-04-03');
+
+
+
+
+DELIMITER //
+
+CREATE PROCEDURE GetDepartmentStats(IN p_dept_name VARCHAR(100))
+BEGIN
+    DECLARE total_salary DECIMAL(15,2);
+    DECLARE employee_count INT;
+    DECLARE dept_budget DECIMAL(15,2);
+    DECLARE budget_utilization DECIMAL(10,2);
+    
+    -- Get the department's budget
+    SELECT budget INTO dept_budget
+    FROM departments 
+    WHERE dept_name = p_dept_name;
+    
+    -- Get total salary expense and employee count
+    SELECT 
+        SUM(salary), 
+        COUNT(*)
+    INTO 
+        total_salary, 
+        employee_count
+    FROM employees
+    WHERE department = p_dept_name;
+    
+    -- Handle NULL values for calculations
+    IF total_salary IS NULL THEN
+        SET total_salary = 0;
+    END IF;
+    
+    IF employee_count IS NULL THEN
+        SET employee_count = 0;
+    END IF;
+    
+    -- Calculate budget utilization as percentage
+    IF dept_budget > 0 THEN
+        SET budget_utilization = (total_salary / dept_budget) * 100;
+    ELSE
+        SET budget_utilization = 0;
+    END IF;
+    
+    -- Return the results
+    SELECT 
+        p_dept_name AS 'Department',
+        total_salary AS 'Total Salary Expense',
+        employee_count AS 'Number of Employees',
+        CONCAT(ROUND(budget_utilization, 2), '%') AS 'Budget Utilization';
+    
+END //
+
+DELIMITER ;
+
+
+CALL GetDepartmentStats('Marketing');
+
+
 
 
 
