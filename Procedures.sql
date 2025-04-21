@@ -280,6 +280,199 @@ DELIMITER ;
 CALL GetDepartmentStats('Marketing');
 
 
+CREATE TABLE customers (
+  customer_id INT PRIMARY KEY,
+  name VARCHAR(100),
+  email VARCHAR(100),
+  signup_date DATE
+);
+
+CREATE TABLE orders (
+  order_id INT PRIMARY KEY,
+  customer_id INT,
+  order_date DATE,
+  total_amount DECIMAL(10,2),
+  FOREIGN KEY (customer_id) REFERENCES customers(customer_id)  -- Foreign key reference to customers
+);
+
+ALTER TABLE orders ADD COLUMN status VARCHAR(50);
+
+CREATE TABLE order_items (
+  item_id INT PRIMARY KEY,
+  order_id INT,
+  product_id INT,
+  quantity INT,
+  unit_price DECIMAL(10,2),
+  FOREIGN KEY (order_id) REFERENCES orders(order_id)  -- Foreign key reference to orders
+);  -- Removed the trailing comma here
+
+-- Inserting data into the tables
+INSERT INTO customers (customer_id, name, email, signup_date) VALUES
+(1, 'Alice Johnson', 'alice.johnson@example.com', '2020-01-10'),
+(2, 'Bob Smith', 'bob.smith@example.com', '2021-02-20'),
+(3, 'Charlie Davis', 'charlie.davis@example.com', '2019-03-15'),
+(4, 'David Miller', 'david.miller@example.com', '2022-06-01'),
+(5, 'Eve Wilson', 'eve.wilson@example.com', '2018-07-23');
+
+INSERT INTO orders (order_id, customer_id, order_date, total_amount) VALUES
+(1, 1, '2025-01-15', 250.75),
+(2, 2, '2025-02-10', 450.50),
+(3, 3, '2025-03-20', 150.25),
+(4, 4, '2025-04-18', 500.00),
+(5, 5, '2025-04-05', 300.60);
+
+INSERT INTO order_items (item_id, order_id, product_id, quantity, unit_price) VALUES
+(1, 1, 101, 2, 50.25),
+(2, 1, 102, 1, 150.50),
+(3, 2, 101, 3, 50.25),
+(4, 2, 103, 2, 75.00),
+(5, 3, 104, 1, 150.25),
+(6, 3, 102, 2, 150.50),
+(7, 4, 105, 4, 125.00),
+(8, 4, 101, 1, 50.25),
+(9, 5, 102, 2, 150.50),
+(10, 5, 106, 1, 100.00);
+
+
+DELIMITER $$
+
+CREATE PROCEDURE topcustomers()
+BEGIN
+
+WITH recent_orders AS (
+    SELECT 
+        o.customer_id,
+        o.order_id,
+        o.order_date,
+        o.total_amount
+    FROM orders o
+    WHERE o.order_date >= CURDATE() - INTERVAL 3 MONTH
+),
+total_spend AS (
+    SELECT 
+        ro.customer_id,
+        SUM(ro.total_amount) AS total_spent
+    FROM recent_orders ro
+    GROUP BY ro.customer_id
+),
+most_common_products AS (
+    SELECT 
+        ro.customer_id,
+        oi.product_id,
+        COUNT(oi.product_id) AS product_count
+    FROM recent_orders ro
+    JOIN order_items oi ON ro.order_id = oi.order_id
+    GROUP BY ro.customer_id, oi.product_id
+),
+top_products AS (
+    SELECT
+        customer_id,
+        product_id,
+        RANK() OVER (PARTITION BY customer_id ORDER BY product_count DESC) AS product_rank
+    FROM most_common_products
+)
+SELECT 
+    ts.customer_id,
+    ts.total_spent,
+    tp.product_id AS most_common_product
+FROM total_spend ts
+JOIN top_products tp ON ts.customer_id = tp.customer_id
+WHERE tp.product_rank = 1
+ORDER BY ts.total_spent DESC
+LIMIT 5;
+
+
+
+END $$
+
+DELIMITER ;
+
+-- call topcustomers();
+
+
+DELIMITER $$
+
+CREATE PROCEDURE getallproducts(IN cname VARCHAR(50))
+BEGIN
+
+    DECLARE customer VARCHAR(100);
+    DECLARE prod_id INT;
+    
+    -- This only works for a single row result
+    -- Will cause error if multiple rows are returned
+    SELECT c.name, oi.product_id INTO customer, prod_id
+    FROM customers c
+    JOIN orders o ON c.customer_id = o.customer_id
+    JOIN order_items oi ON o.order_id = oi.order_id
+    WHERE c.name = cname
+    LIMIT 1;
+    
+    SELECT customer, prod_id;
+
+END $$
+
+
+DELIMITER ;
+
+SET @cname = 'David Miller';
+
+-- call getallproducts(@cname);
+
+
+DELIMITER $$
+CREATE PROCEDURE getcustomerordersummary(IN custid INT)
+BEGIN
+SELECT name,count(o.order_id) as total_orders, sum(total_amount),avg(total_amount) from customers c
+join orders o on c.customer_id = o.customer_id where c.customer_id = custid group by name;
+
+END$$
+
+DELIMITER ;
+
+set @id = 1;
+
+-- call getcustomerordersummary(@id);
+
+
+DELIMITER $$
+CREATE PROCEDURE GetTopCustomers(IN n INT)
+BEGIN
+
+SELECT name, email, sum(total_amount) as total_spending from customers c join orders o
+on c.customer_id = o.customer_id group by name, email
+order by total_spending DESC
+limit n;
+
+END $$
+
+DELIMITER ;
+
+SET @n = 3;
+
+-- call GetTopCustomers(@n);
+
+
+DELIMITER $$
+
+CREATE PROCEDURE FindInactiveCustomers()
+BEGIN
+    SELECT c.customer_id, c.name
+    FROM customers c
+    LEFT JOIN orders o ON c.customer_id = o.customer_id
+    WHERE o.order_id IS NULL;
+END $$
+
+DELIMITER ;
+
+
+call FindInactiveCustomers();
+
+
+SELECT MONTH(order_date) as month, DAY(order_date) AS day from orders;
+
+CREATE INDEX idx_unpaid_orders ON orders (order_id)
+WHERE payment_status = 'unpaid';
+
 
 
 
